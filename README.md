@@ -1,0 +1,2 @@
+# Final-Project--Data-Analysis-of-movies
+In this project, we wanted to analyze information about some of the best movies on our most familiar platforms, like Netflix, Prime video and more. you can find the data set we used here.  We wanted to take this everyday subject and thoroughly study it. Our main questions were:  Is there a linear correlation between IMDb ratings and Rotten Tomatoes ratings?  Is there a certain distribution to IMDb ratings?
