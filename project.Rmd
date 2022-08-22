@@ -1,0 +1,179 @@
+---
+title: "Movies on Netflix, Prime, Hulu and Disney+ Analysis"
+author: "Dana Eilam, Sivan Itzhaki, Shiraz Israeli"
+date: "24.6.2021"
+output: html_document
+---
+
+# Background and goals
+
+In this project, we wanted to analyze information about some of the best movies on our most familiar platforms, like Netflix, Prime video and more. you can find the data set we used   [here](https://www.kaggle.com/ruchi798/movies-on-netflix-prime-video-hulu-and-disney).
+
+We wanted to take this everyday subject and thoroughly study it. 
+Our main questions were:
+
+  *  Is there a linear correlation between IMDb ratings and Rotten Tomatoes ratings? 
+  
+  * Is there a certain distribution to IMDb ratings?
+
+```{r libraries, message=FALSE,warning=FALSE, echo=FALSE}
+# Adding the libraries we will work with
+
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importing the data set and Tidying
+First we will need to import our data set, which is a simple CSV table. Afterwards we will need to adjust a few things. We can see some NA values in the table, so let's remove any instance of NA values, while keeping the structural integrity of the table.
+
+```{r importing, echo=FALSE, warning=FALSE}
+# Importing the data
+
+movies <- readr::read_csv('MoviesOnStreamingPlatforms_updated.csv')
+```
+
+```{r tidying, echo=TRUE, warning=FALSE}
+# Deleting any NA value in the table
+
+movies <- na.omit(movies, invert=FALSE)
+movies <- select(movies, 2:13)
+view(movies)
+```
+
+# Transformation and Visualization
+## Transformation
+We noticed that the values of Rotten Tomatoes aren't represented as numbers, but as strings of percentages. So we needed to transform each value to a number, and for a better comparison and convenience, we transformed it to a scale of 1 - 10, just like IMDb ratings scale.
+
+```{r transforming, echo=TRUE,  warning=FALSE}
+# Transforming 'Rotten tomatoes' rating to numbers in the right scale
+
+movies$`Rotten Tomatoes` <- as.numeric(sub("%", "", movies$`Rotten Tomatoes`))/10
+glimpse(movies)
+```
+
+
+## Visualization
+
+Let's see of the interesting information we got to work with. 
+
+First let's have a look at the top ten movies by IMDb:
+```{r visual1, echo=TRUE,  warning=FALSE}
+# Finding top ten movies by IMDb rate
+
+movies%>%
+  arrange(desc(IMDb))%>%
+  slice(1:10)%>%
+  select(Title)
+```
+
+Let's also have a look at the top ten movies by Rotten Tomatoes:
+```{r visual2, echo=TRUE,  warning=FALSE}
+# Finding top ten movies by 'Rotten Tomatoes' rate
+
+movies%>%
+  arrange(desc(`Rotten Tomatoes`))%>%
+  slice(1:10)%>%
+  select(Title)
+```
+
+Let's compare both of the ratings methods by graphs:
+```{r visual3, echo=TRUE,  warning=FALSE}
+# Making IMDb ratings density graph 
+
+movies%>%
+  ggplot(aes(IMDb)) + geom_density(fill="lavenderblush")
+
+# Making 'Rotten Tomatoes' ratings density graph 
+
+movies%>%
+  ggplot(aes(`Rotten Tomatoes`)) + geom_density(fill="mistyrose1")
+```
+
+We can see that the IMDb rating has interesting and familiar spread! It could hint on a normal distribution, which we'll check later. Another graph that can show the aforementioned spread:
+
+```{r visual4, echo=TRUE,  warning=FALSE}
+# Making IMDb ratings bars histogram graph 
+
+movies%>%
+  ggplot(aes(IMDb)) + geom_histogram(fill="rosybrown4")
+```
+
+Let's have a look on some other details. Like how the how age affects the rate by IMDb:
+```{r visual5, echo=TRUE,  warning=FALSE}
+# Making a box-plot graph, age group compared with rate by IMDb 
+
+movies %>%
+  ggplot(aes(x=Age, y=IMDb, fill=Age))+
+  geom_boxplot()+
+  scale_fill_brewer(palette = "Pastel2")
+```
+
+We can see that the median of the "All" group age is the highest one and the median of the "16+" group age is the lowest one. All of the medians are above a rate of 6.25 on IMDb.
+
+# Modelling
+## Linear regression
+
+We compared both of the rating methods but do they have some kind of linear correlation? Let's check our thought by using linear regression model.
+
+```{r model1, echo=TRUE,  warning=FALSE}
+# Building the linear model and showing the results
+
+model1<-lm(formula = IMDb ~ `Rotten Tomatoes`, data = movies)
+summary(model1)
+
+# Making a point graph, IMDb compared with 'Rotten Tomatoes', and adding the estimate linear line
+
+movies %>% 
+  ggplot(aes(y=IMDb, x= `Rotten Tomatoes`))+
+  geom_point(color="turquoise4")+
+  stat_smooth(method = "lm",color="black")
+```
+
+We can definitely say that these are good results! Although the R-Squared isn't so high, we can see our p-value is really low. Beside the variable's p-value we can see '***', which stands for the most significant level of variable possible. Based on the really low p-value, and the graph which seems very homoscedastic, we can determine that there is a correlation between IMDb ratings and Rotten Tomatoes ratings.
+
+## Chi-square goodness of fit test
+
+As we saw on the IMDb density graphs we've shown, we can think that it's maybe a normal distribution.
+Let's check our thought by using Chi-square goodness of fit test model.
+
+Our H0: IMDB ~N(Mean,sd^2)
+
+our H1: else
+
+```{r model2, echo=TRUE,  warning=FALSE}
+# Dividing IMDb ratings into 4 groups
+
+movies_new <- movies %>%
+  mutate(new_IMDb_groups = cut(IMDb, breaks=c(0,5,6.5,7,10)))
+
+# Calculating the expected value of each group according to theoretical normal distribution, 
+# with estimate mean and sd, multiplied by observations number, in order to get the expected cumulative outcome
+
+expected_c<-pnorm(q=c(5,6.5,7,10), mean = mean(movies$IMDb),sd=sd(movies$IMDb))*3301
+expected<- expected_c[1:4] -c(0, expected_c[1:3])
+
+# Showing expected value compared with observed value for each group
+
+movies_new %>%
+  count(new_IMDb_groups, name= "observed") %>%
+  mutate(expected=expected)%>%
+  mutate(chi=((expected-observed)^2)/expected)
+
+# Calculating the empirical chi square - the statistic and showing the results 
+
+movies_new %>%
+  count(new_IMDb_groups, name= "observed") %>%
+  mutate(expected=expected)%>%
+  mutate(chi=((expected-observed)^2)/expected)%>%
+  mutate(statistic=sum(((expected-observed)^2)/expected))%>%
+  slice(1:1)%>%
+  select(statistic)
+
+```
+
+We can see we have a good result! Our statistic is very small, and according to our theoretical chi square with level of significance of 0.05 (a=0.05), and df=1 (4-2-1=1), we have got a value of 3.841, which is higher than our statistic (3.61). Therefore, we will not reject our H0, which means that IMDb rating's distribution is normal, as we thought. 
+
+
+# Conclusion
+
+In our project we experienced and applied the material learned in this course, while researching the everyday subject of movies. We used various visualizations methods we learned in class and we've shown various familiar graphs. We raised some questions and hypotheses along the project, which eventually been answered with different modeling methods. We hope you gained some information from this project and enjoyed reading it :) 
